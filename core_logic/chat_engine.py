@@ -7,7 +7,6 @@ from loneliness_analyzer import LonelinessAnalyzer
 from wellness_tools import WellnessTools
 from some_llm_sdk import LLM  # Replace with your actual LLM interface
 
-
 class SoulmateAGI:
     def __init__(self, user_id):
         self.user_id = user_id
@@ -33,18 +32,20 @@ class SoulmateAGI:
         recent_context = self.memory.retrieve_relevant(user_input, limit=5)
 
         # Step 3: Adjust Personality Mode
-        if emotion in ["sad", "angry", "anxious"]:
+        if emotion in ["sad", "angry", "anxious", "lonely", "depressed"]:
             self.set_mode("supportive")
 
         # Step 4: Check Wellness Tools
         wellness_suggestion = self.wellness.suggest(emotion)
         if wellness_suggestion:
+            self.journal.log_entry(timestamp, user_input, wellness_suggestion, emotion)
             return wellness_suggestion
 
         # Step 5: Check Loneliness Analyzer
         self.loneliness_analyzer.log_emotion(emotion)
         lonely_response = self.loneliness_analyzer.suggest_response()
         if lonely_response:
+            self.journal.log_entry(timestamp, user_input, lonely_response, emotion)
             return lonely_response
 
         # Step 6: Construct prompt
@@ -55,7 +56,7 @@ class SoulmateAGI:
 
         # Step 8: Store interaction
         self.memory.store_interaction(user_input, response)
-        self.journal.log_interaction(timestamp, user_input, response, emotion)
+        self.journal.log_entry(timestamp, user_input, response, emotion)
 
         return response
 
@@ -69,5 +70,9 @@ class SoulmateAGI:
             f"User: {c['user']}\nSoulmate: {c['ai']}" for c in context
         ])
 
-        full_prompt = f"{system_prompt}\n\nConversation history:\n{context_text}\nCurrent message:\nUser: {user_input}\nSoulmate:"
+        full_prompt = (
+            f"{system_prompt}\n\n"
+            f"Conversation history:\n{context_text}\n"
+            f"Current message:\nUser: {user_input}\nSoulmate:"
+        )
         return full_prompt
