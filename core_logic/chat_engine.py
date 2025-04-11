@@ -5,6 +5,7 @@ from journaling import Journal
 from personality_manager import PersonalityManager
 from loneliness_analyzer import LonelinessAnalyzer
 from wellness_tools import WellnessTools
+from feedback_learner import FeedbackLearner
 from some_llm_sdk import LLM  # Replace with your actual LLM interface
 
 class SoulmateAGI:
@@ -16,6 +17,7 @@ class SoulmateAGI:
         self.personality_manager = PersonalityManager(user_id)
         self.loneliness_analyzer = LonelinessAnalyzer(user_id)
         self.wellness = WellnessTools()
+        self.feedback_learner = FeedbackLearner(user_id)
         self.mode = "casual"  # Modes: casual, task, reflective, supportive
 
     def set_mode(self, mode):
@@ -32,20 +34,18 @@ class SoulmateAGI:
         recent_context = self.memory.retrieve_relevant(user_input, limit=5)
 
         # Step 3: Adjust Personality Mode
-        if emotion in ["sad", "angry", "anxious", "lonely", "depressed"]:
+        if emotion in ["sad", "angry", "anxious"]:
             self.set_mode("supportive")
 
         # Step 4: Check Wellness Tools
         wellness_suggestion = self.wellness.suggest(emotion)
         if wellness_suggestion:
-            self.journal.log_entry(timestamp, user_input, wellness_suggestion, emotion)
             return wellness_suggestion
 
         # Step 5: Check Loneliness Analyzer
         self.loneliness_analyzer.log_emotion(emotion)
         lonely_response = self.loneliness_analyzer.suggest_response()
         if lonely_response:
-            self.journal.log_entry(timestamp, user_input, lonely_response, emotion)
             return lonely_response
 
         # Step 6: Construct prompt
@@ -56,9 +56,15 @@ class SoulmateAGI:
 
         # Step 8: Store interaction
         self.memory.store_interaction(user_input, response)
-        self.journal.log_entry(timestamp, user_input, response, emotion)
+        self.journal.log_interaction(timestamp, user_input, response, emotion)
+
+        # Step 9: Request Feedback
+        response += "\n\n🙏 Was this helpful? (Yes/No or 1-5 rating)"
 
         return response
+
+    def process_feedback(self, user_input, response, feedback_rating):
+        self.feedback_learner.log_feedback(user_input, response, feedback_rating)
 
     def _construct_prompt(self, user_input, context, emotion):
         base_instruction = self.personality_manager.get_personality_instruction()
@@ -70,9 +76,5 @@ class SoulmateAGI:
             f"User: {c['user']}\nSoulmate: {c['ai']}" for c in context
         ])
 
-        full_prompt = (
-            f"{system_prompt}\n\n"
-            f"Conversation history:\n{context_text}\n"
-            f"Current message:\nUser: {user_input}\nSoulmate:"
-        )
+        full_prompt = f"{system_prompt}\n\nConversation history:\n{context_text}\nCurrent message:\nUser: {user_input}\nSoulmate:"
         return full_prompt
