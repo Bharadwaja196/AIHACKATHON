@@ -1,58 +1,48 @@
-import os
-import pickle
-from datetime import datetime
-from journaling import Journal
+import datetime
 from memory_manager import MemoryManager
-from personality_manager import PersonalityManager
-
+from journaling import Journal
+from private_memory import PrivateMemoryVault
+from some_llm_sdk import LoRATrainer  # Update if you have a specific LoRA SDK
 
 class NightTrainer:
-    def __init__(self, user_id, output_dir="training_data"):
+    def __init__(self, user_id):
         self.user_id = user_id
-        self.journal = Journal(user_id)
         self.memory = MemoryManager(user_id)
-        self.personality = PersonalityManager(user_id)
-        self.output_dir = output_dir
-        os.makedirs(self.output_dir, exist_ok=True)
+        self.journal = Journal(user_id)
+        self.vault = PrivateMemoryVault(user_id)
+        self.trainer = LoRATrainer(model_path="llm/11m", adapter_path="lora_adapters")  # Adjust to your actual paths
 
-    def collect_training_data(self):
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        logs = self.journal.get_logs_for_day(today_str)
-        memory_data = self.memory.retrieve_global(limit=20)  # broader context
+    def run_training_job(self):
+        print(f"🌙 Night training started for {self.user_id}...")
 
-        training_samples = []
+        # Step 1: Collect daytime memory logs
+        memory_logs = self.memory.retrieve_all()
 
-        for entry in logs:
-            user_input = entry.get("user")
-            ai_response = entry.get("ai")
-            emotion = entry.get("emotion")
-            tone_instruction = self.personality.get_personality_instruction()
+        # Step 2: Collect private emotional entries from the vault
+        private_entries = self.vault.retrieve_private_entries()
 
-            prompt = f"{tone_instruction}\nUser (feeling {emotion}): {user_input}\nSoulmate:"
+        # Step 3: Merge both datasets
+        combined_logs = memory_logs + private_entries
 
-            training_samples.append({
-                "prompt": prompt,
-                "response": ai_response,
-                "emotion": emotion,
-                "date": today_str
-            })
+        if not combined_logs:
+            print("📭 No data to train on tonight.")
+            return
 
-        for memory in memory_data:
-            training_samples.append({
-                "prompt": memory["user"],
-                "response": memory["ai"],
-                "emotion": "contextual_memory",
-                "date": memory.get("timestamp")
-            })
+        # Step 4: Format for training (prompt-response pairs)
+        formatted_data = [
+            {
+                "input": entry["user_input"],
+                "output": entry["soulmate_response"]
+            }
+            for entry in combined_logs
+            if entry.get("user_input") and entry.get("soulmate_response")
+        ]
 
-        output_file = os.path.join(self.output_dir, f"{self.user_id}_daily_data.pkl")
-        with open(output_file, "wb") as f:
-            pickle.dump(training_samples, f)
+        # Step 5: Fine-tune with LoRA (or PEFT)
+        self.trainer.fine_tune(formatted_data)
 
-        print(f"Collected {len(training_samples)} samples for training.")
-        return output_file
-
+        print("✅ Soulmate has grown stronger tonight. 🌱💖")
 
 # Example usage:
-# trainer = NightTrainer(user_id="user123")
-# data_path = trainer.collect_training_data()
+# trainer = NightTrainer("user123")
+# trainer.run_training_job()
