@@ -1,5 +1,6 @@
 import os
 import json
+from private_memory import PrivateMemoryVault
 from datetime import datetime
 
 class Journal:
@@ -7,8 +8,14 @@ class Journal:
         self.user_id = user_id
         self.journal_dir = os.path.join(base_dir, user_id)
         os.makedirs(self.journal_dir, exist_ok=True)
+        self.vault = PrivateMemoryVault(user_id)
 
     def log_interaction(self, timestamp, user_input, response, emotion):
+        # 🛡️ Store private emotional memory
+        if emotion in ["sad", "lonely", "anxious", "depressed"]:
+            self.vault.store_private_entry(timestamp, user_input, response, emotion)
+
+        # 📖 Standard journaling
         entry = {
             "timestamp": timestamp.isoformat(),
             "user_input": user_input,
