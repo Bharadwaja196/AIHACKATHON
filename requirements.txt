@@ -1,0 +1,27 @@
+# Core Transformers and LLMs
+transformers==4.38.2
+peft==0.8.2
+accelerate==0.27.2
+sentence-transformers==2.2.2
+torch==2.2.2
+scipy==1.12.0
+
+# Vector Store (FAISS)
+faiss-cpu==1.7.4  # Use faiss-gpu if you're training with GPU vector search
+
+# Emotion Analysis
+nltk==3.8.1
+text2emotion==0.0.5  # Lightweight emotion detector
+emoji==2.11.0  # Handles emoji emotion cues
+
+# Data I/O
+pandas==2.2.2
+numpy==1.26.4
+joblib==1.4.0
+tqdm==4.66.2
+
+# Streamlit UI
+streamlit==1.33.0
+
+# System
+PyYAML==6.0.1
