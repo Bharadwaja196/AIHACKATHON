@@ -1,51 +1,46 @@
+# memory_manager.py
+
 import faiss
 import numpy as np
 import os
-import json
+import pickle
+from embeddings.embedding_manager import EmbeddingManager
 
 class MemoryManager:
     def __init__(self, user_id, dim=384):
         self.user_id = user_id
-        self.dim = dim
-        self.index = faiss.IndexFlatL2(dim)
-        self.data = []
-        self.vector_store_path = f"memory_{user_id}.json"
-        self._load_memory()
+        self.embedding_manager = EmbeddingManager()
+        self.index_file = f"{user_id}_faiss.index"
+        self.data_file = f"{user_id}_memory.pkl"
+        self.dimension = dim
 
-    def _load_memory(self):
-        if os.path.exists(self.vector_store_path):
-            with open(self.vector_store_path, 'r') as f:
-                saved = json.load(f)
-                self.data = saved["data"]
-                vectors = np.array(saved["vectors"]).astype('float32')
-                if len(vectors) > 0:
-                    self.index.add(vectors)
+        self.index = faiss.IndexFlatL2(self.dimension)
+        self.memory_data = []
 
-    def _save_memory(self):
-        vectors = self.index.reconstruct_n(0, self.index.ntotal).tolist()
-        with open(self.vector_store_path, 'w') as f:
-            json.dump({
-                "data": self.data,
-                "vectors": vectors
-            }, f)
+        if os.path.exists(self.index_file) and os.path.exists(self.data_file):
+            self._load_index()
 
-    def store_interaction(self, user_input, ai_response):
-        from sentence_transformers import SentenceTransformer
-        model = SentenceTransformer('all-MiniLM-L6-v2')
-        combined = f"User: {user_input} AI: {ai_response}"
-        vector = model.encode([combined])[0].astype('float32')
+    def _load_index(self):
+        self.index = faiss.read_index(self.index_file)
+        with open(self.data_file, 'rb') as f:
+            self.memory_data = pickle.load(f)
+
+    def _save_index(self):
+        faiss.write_index(self.index, self.index_file)
+        with open(self.data_file, 'wb') as f:
+            pickle.dump(self.memory_data, f)
+
+    def store_interaction(self, user_text, ai_response):
+        vector = self.embedding_manager.embed_text(user_text)
         self.index.add(np.array([vector]))
-        self.data.append({"user": user_input, "ai": ai_response})
-        self._save_memory()
+        self.memory_data.append({
+            "user": user_text,
+            "ai": ai_response,
+            "vector": vector
+        })
+        self._save_index()
 
-    def retrieve_relevant(self, query, limit=5):
-        from sentence_transformers import SentenceTransformer
-        model = SentenceTransformer('all-MiniLM-L6-v2')
-        vector = model.encode([query])[0].astype('float32')
-        D, I = self.index.search(np.array([vector]), limit)
-
-        results = []
-        for i in I[0]:
-            if i < len(self.data):
-                results.append(self.data[i])
-        return results
+    def retrieve_relevant(self, query_text, limit=5):
+        query_vector = self.embedding_manager.embed_text(query_text)
+        D, I = self.index.search(np.array([query_vector]), limit)
+        return [self.memory_data[i] for i in I[0] if i < len(self.memory_data)]
