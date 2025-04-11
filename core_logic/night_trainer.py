@@ -1,61 +1,59 @@
-import os
-from datetime import datetime
+import datetime
 from memory_manager import MemoryManager
+from journaling import Journal
 from private_memory import PrivateMemoryVault
-from daily_summary import DailySummarizer
-from llm.llm_with_lora import FineTuner  # Assuming you're using your LoRA-based fine-tuner
+from daily_summary import DailySummary
+from feedback_learner import FeedbackLearner
+from some_llm_sdk import LoRATrainer  # Replace with your actual LoRA SDK
 
 class NightTrainer:
     def __init__(self, user_id):
         self.user_id = user_id
-        self.memory_manager = MemoryManager(user_id)
+        self.memory = MemoryManager(user_id)
+        self.journal = Journal(user_id)
         self.vault = PrivateMemoryVault(user_id)
-        self.summarizer = DailySummarizer(user_id)
-        self.trainer = FineTuner(user_id)  # your fine-tuner class using LoRA/PEFT
-
-    def gather_training_data(self):
-        print("[🌙] Gathering training data for nightly learning...")
-
-        # Daily conversation logs & embeddings
-        memory_logs = self.memory_manager.retrieve_recent_memories()
-
-        # Private Vault entries (emotions, thoughts, sensitive moments)
-        private_entries = self.vault.retrieve_private_entries()
-
-        # Daily Summary (mood + thought patterns)
-        summary_text = self.summarizer.get_summary_text()
-
-        training_corpus = []
-
-        # Add memory logs
-        for log in memory_logs:
-            training_corpus.append(f"[Memory] {log['user_input']} => {log['response']} (emotion: {log.get('emotion', 'neutral')})")
-
-        # Add private entries
-        for entry in private_entries:
-            training_corpus.append(f"[Private] {entry['user_input']} => {entry['response']} (emotion: {entry.get('emotion', 'unknown')})")
-
-        # Add summary if available
-        if summary_text:
-            training_corpus.append(f"[Summary] {summary_text}")
-
-        return training_corpus
+        self.summary = DailySummary(user_id)
+        self.feedback = FeedbackLearner(user_id)
+        self.trainer = LoRATrainer(model_path="llm/11m", adapter_path="lora_adapters")
 
     def run_training_job(self):
-        print(f"[🚀] Starting nightly training for user: {self.user_id}")
-        training_data = self.gather_training_data()
+        print(f"🌙 Night training started for {self.user_id}...")
 
-        if not training_data:
-            print("[⚠️] No data found for today. Skipping training.")
+        # Step 1: Collect memory logs from the day
+        memory_logs = self.memory.retrieve_all()
+
+        # Step 2: Collect private emotional entries
+        private_entries = self.vault.retrieve_private_entries()
+
+        # Step 3: Collect feedback learning examples
+        feedback_examples = self.feedback.retrieve_feedback_samples()
+
+        # Step 4: Merge all sources
+        combined_logs = memory_logs + private_entries + feedback_examples
+
+        if not combined_logs:
+            print("📭 No data to train on tonight.")
             return
 
-        # Launch fine-tuning via LoRA or PEFT
-        self.trainer.fine_tune(training_data)
-        print(f"[✅] Nightly training complete for {self.user_id} at {datetime.now()}")
+        # Step 5: Format into prompt-response pairs
+        formatted_data = [
+            {
+                "input": entry["user_input"],
+                "output": entry["soulmate_response"]
+            }
+            for entry in combined_logs
+            if entry.get("user_input") and entry.get("soulmate_response")
+        ]
 
+        # Step 6: Perform LoRA fine-tuning
+        self.trainer.fine_tune(formatted_data)
 
-# Optional: Run when this file is executed directly
-if __name__ == "__main__":
-    user_id = "demo_user"
-    trainer = NightTrainer(user_id)
-    trainer.run_training_job()
+        # Step 7: Generate daily thought summary
+        summary = self.journal.get_daily_summary()
+        self.summary.save_summary(summary)
+
+        print("✅ SoulMate has evolved with love, insight, and empathy tonight. 🌌💞")
+
+# Example usage:
+# trainer = NightTrainer("user123")
+# trainer.run_training_job()
