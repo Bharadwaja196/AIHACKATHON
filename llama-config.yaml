@@ -1,0 +1,14 @@
+version: 2
+stack_name: local-llama
+image_name: llama-stack:latest
+
+providers:
+  - name: huggingface
+    provider_type: huggingface
+    api_key: YOUR_HUGGINGFACE_API_KEY
+
+models:
+  - model_id: openchat/openchat-3.5-0106
+    name: OpenChat
+    provider: huggingface
+    image_type: conda
