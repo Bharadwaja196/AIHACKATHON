@@ -8,19 +8,21 @@ class FeedbackLearner:
         self.feedback_dir = os.path.join(base_dir, user_id)
         os.makedirs(self.feedback_dir, exist_ok=True)
 
-    def log_feedback(self, user_input, response, feedback_score):
+    def log_feedback(self, user_input, response, feedback_score, notes=None):
         """
-        Stores feedback entry with a score:
-        +1 for positive, 0 for neutral, -1 for negative
+        Stores feedback with optional notes.
+        feedback_score: +1 = positive, 0 = neutral, -1 = negative
         """
-        timestamp = datetime.now().isoformat()
+        timestamp = datetime.now()
         entry = {
-            "timestamp": timestamp,
+            "timestamp": timestamp.isoformat(),
             "user_input": user_input,
             "soulmate_response": response,
-            "feedback_score": feedback_score
+            "feedback_score": feedback_score,
+            "notes": notes or ""
         }
-        date_str = datetime.now().strftime("%Y-%m-%d")
+
+        date_str = timestamp.strftime("%Y-%m-%d")
         file_path = os.path.join(self.feedback_dir, f"{date_str}.json")
 
         if os.path.exists(file_path):
@@ -42,6 +44,9 @@ class FeedbackLearner:
                     all_entries.extend(json.load(f))
         return all_entries
 
+    def get_positive_samples(self):
+        return [f for f in self.retrieve_all_feedback() if f["feedback_score"] == 1]
+
     def get_feedback_summary(self):
         entries = self.retrieve_all_feedback()
         if not entries:
@@ -53,8 +58,3 @@ class FeedbackLearner:
         neutral = total - positives - negatives
 
         return f"👍 Positive: {positives} | 😐 Neutral: {neutral} | 👎 Negative: {negatives}"
-
-# Example usage:
-# fl = FeedbackLearner("user123")
-# fl.log_feedback("I'm feeling weird", "Want to talk about it?", 1)
-# print(fl.get_feedback_summary())
