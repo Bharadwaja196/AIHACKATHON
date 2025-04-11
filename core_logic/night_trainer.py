@@ -1,48 +1,61 @@
-import datetime
+import os
+from datetime import datetime
 from memory_manager import MemoryManager
-from journaling import Journal
 from private_memory import PrivateMemoryVault
-from some_llm_sdk import LoRATrainer  # Update if you have a specific LoRA SDK
+from daily_summary import DailySummarizer
+from llm.llm_with_lora import FineTuner  # Assuming you're using your LoRA-based fine-tuner
 
 class NightTrainer:
     def __init__(self, user_id):
         self.user_id = user_id
-        self.memory = MemoryManager(user_id)
-        self.journal = Journal(user_id)
+        self.memory_manager = MemoryManager(user_id)
         self.vault = PrivateMemoryVault(user_id)
-        self.trainer = LoRATrainer(model_path="llm/11m", adapter_path="lora_adapters")  # Adjust to your actual paths
+        self.summarizer = DailySummarizer(user_id)
+        self.trainer = FineTuner(user_id)  # your fine-tuner class using LoRA/PEFT
 
-    def run_training_job(self):
-        print(f"🌙 Night training started for {self.user_id}...")
+    def gather_training_data(self):
+        print("[🌙] Gathering training data for nightly learning...")
 
-        # Step 1: Collect daytime memory logs
-        memory_logs = self.memory.retrieve_all()
+        # Daily conversation logs & embeddings
+        memory_logs = self.memory_manager.retrieve_recent_memories()
 
-        # Step 2: Collect private emotional entries from the vault
+        # Private Vault entries (emotions, thoughts, sensitive moments)
         private_entries = self.vault.retrieve_private_entries()
 
-        # Step 3: Merge both datasets
-        combined_logs = memory_logs + private_entries
+        # Daily Summary (mood + thought patterns)
+        summary_text = self.summarizer.get_summary_text()
 
-        if not combined_logs:
-            print("📭 No data to train on tonight.")
+        training_corpus = []
+
+        # Add memory logs
+        for log in memory_logs:
+            training_corpus.append(f"[Memory] {log['user_input']} => {log['response']} (emotion: {log.get('emotion', 'neutral')})")
+
+        # Add private entries
+        for entry in private_entries:
+            training_corpus.append(f"[Private] {entry['user_input']} => {entry['response']} (emotion: {entry.get('emotion', 'unknown')})")
+
+        # Add summary if available
+        if summary_text:
+            training_corpus.append(f"[Summary] {summary_text}")
+
+        return training_corpus
+
+    def run_training_job(self):
+        print(f"[🚀] Starting nightly training for user: {self.user_id}")
+        training_data = self.gather_training_data()
+
+        if not training_data:
+            print("[⚠️] No data found for today. Skipping training.")
             return
 
-        # Step 4: Format for training (prompt-response pairs)
-        formatted_data = [
-            {
-                "input": entry["user_input"],
-                "output": entry["soulmate_response"]
-            }
-            for entry in combined_logs
-            if entry.get("user_input") and entry.get("soulmate_response")
-        ]
+        # Launch fine-tuning via LoRA or PEFT
+        self.trainer.fine_tune(training_data)
+        print(f"[✅] Nightly training complete for {self.user_id} at {datetime.now()}")
 
-        # Step 5: Fine-tune with LoRA (or PEFT)
-        self.trainer.fine_tune(formatted_data)
 
-        print("✅ Soulmate has grown stronger tonight. 🌱💖")
-
-# Example usage:
-# trainer = NightTrainer("user123")
-# trainer.run_training_job()
+# Optional: Run when this file is executed directly
+if __name__ == "__main__":
+    user_id = "demo_user"
+    trainer = NightTrainer(user_id)
+    trainer.run_training_job()
