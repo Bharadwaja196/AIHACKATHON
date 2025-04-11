@@ -2,9 +2,10 @@ import datetime
 from emotion_analyzer import analyze_emotion
 from memory_manager import MemoryManager
 from journaling import Journal
-from some_llm_sdk import LLM
 from personality_manager import PersonalityManager
-from loneliness_analyzer import LonelinessAnalyzer  # 🫶 Loneliness detection
+from loneliness_analyzer import LonelinessAnalyzer
+from wellness_tools import WellnessTools
+from some_llm_sdk import LLM  # Replace with your actual LLM interface
 
 
 class SoulmateAGI:
@@ -15,6 +16,7 @@ class SoulmateAGI:
         self.llm = LLM()
         self.personality_manager = PersonalityManager(user_id)
         self.loneliness_analyzer = LonelinessAnalyzer(user_id)
+        self.wellness = WellnessTools()
         self.mode = "casual"  # Modes: casual, task, reflective, supportive
 
     def set_mode(self, mode):
@@ -24,29 +26,34 @@ class SoulmateAGI:
     def generate_response(self, user_input):
         timestamp = datetime.datetime.now()
 
-        # Step 1: Emotion Detection
+        # Step 1: Emotion Analysis
         emotion = analyze_emotion(user_input)
 
-        # Step 2: Log Emotion for Loneliness Analysis
+        # Step 2: Memory Recall
+        recent_context = self.memory.retrieve_relevant(user_input, limit=5)
+
+        # Step 3: Adjust Personality Mode
+        if emotion in ["sad", "angry", "anxious"]:
+            self.set_mode("supportive")
+
+        # Step 4: Check Wellness Tools
+        wellness_suggestion = self.wellness.suggest(emotion)
+        if wellness_suggestion:
+            return wellness_suggestion
+
+        # Step 5: Check Loneliness Analyzer
         self.loneliness_analyzer.log_emotion(emotion)
         lonely_response = self.loneliness_analyzer.suggest_response()
         if lonely_response:
             return lonely_response
 
-        # Step 3: Retrieve Context from Memory
-        recent_context = self.memory.retrieve_relevant(user_input, limit=5)
-
-        # Step 4: Adjust Tone Based on Emotion
-        if emotion in ["sad", "angry", "anxious"]:
-            self.set_mode("supportive")
-
-        # Step 5: Build Prompt
+        # Step 6: Construct prompt
         prompt = self._construct_prompt(user_input, recent_context, emotion)
 
-        # Step 6: Generate Response via LLM
+        # Step 7: LLM response
         response = self.llm.generate(prompt)
 
-        # Step 7: Log to Memory and Journal
+        # Step 8: Store interaction
         self.memory.store_interaction(user_input, response)
         self.journal.log_interaction(timestamp, user_input, response, emotion)
 
@@ -56,15 +63,11 @@ class SoulmateAGI:
         base_instruction = self.personality_manager.get_personality_instruction()
         system_prompt = f"{base_instruction}"
         if emotion:
-            system_prompt += f" The user seems to be feeling {emotion}. Respond with empathy."
+            system_prompt += f" The user seems to be feeling {emotion}. Respond with empathy and emotional awareness."
 
         context_text = "\n".join([
             f"User: {c['user']}\nSoulmate: {c['ai']}" for c in context
         ])
 
-        full_prompt = (
-            f"{system_prompt}\n"
-            f"Conversation history:\n{context_text}\n"
-            f"Current message:\nUser: {user_input}\nSoulmate:"
-        )
+        full_prompt = f"{system_prompt}\n\nConversation history:\n{context_text}\nCurrent message:\nUser: {user_input}\nSoulmate:"
         return full_prompt
