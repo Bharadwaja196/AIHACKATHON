@@ -63,3 +63,12 @@ class NightTrainer:
 # Example (Manual Run):
 # trainer = NightTrainer("user123")
 # trainer.run_training_job()
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) < 2:
+        print("⚠️  Please provide user ID as a command-line argument.")
+    else:
+        user_id = sys.argv[1]
+        trainer = NightTrainer(user_id)
+        trainer.run_training_job()
