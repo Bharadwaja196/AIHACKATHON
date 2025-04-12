@@ -9,7 +9,7 @@ faiss-cpu==1.7.4
 sentence-transformers==2.6.1
 
 # Emotion Analysis, Classifiers, etc.
-scikit-learn==1.4.1.post1
+scikit-learn==1.4.2
 nltk==3.8.1
 
 # Utilities
