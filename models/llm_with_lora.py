@@ -1,49 +1,43 @@
-import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM, TextStreamer
 from peft import PeftModel
-from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
+import torch
+from utils.logger import logger  # Make sure utils/logger.py exists
 
 class LLM:
-    def __init__(self, 
-                 model_path="llm/11m", 
-                 adapter_path="lora_adapters", 
-                 device=None, 
-                 load_in_8bit=False):
-        """
-        Load base model with LoRA adapters applied.
-        """
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    def __init__(self, base_model_path="llm/11m", adapter_path="lora_adapters"):
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        print(f"🧠 Loading base model from {model_path}...")
-        self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+        logger.info(f"🔧 Loading base model from: {base_model_path}")
+        self.tokenizer = AutoTokenizer.from_pretrained(base_model_path)
+
         base_model = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-            device_map="auto" if torch.cuda.is_available() else None,
-            load_in_8bit=load_in_8bit
+            base_model_path,
+            torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
+            device_map="auto"
         )
 
-        print(f"🎯 Applying LoRA adapters from {adapter_path}...")
+        logger.info(f"🎛️ Applying LoRA adapters from: {adapter_path}")
         self.model = PeftModel.from_pretrained(base_model, adapter_path)
-        self.model.eval().to(self.device)
+        self.model.eval()
 
-    def generate(self, prompt, max_tokens=200, temperature=0.7, top_p=0.9):
-        """
-        Generate a response from the LLM.
-        """
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-        generation_config = GenerationConfig(
-            max_new_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            do_sample=True,
-            pad_token_id=self.tokenizer.eos_token_id
-        )
+        self.streamer = TextStreamer(self.tokenizer)
+
+    def generate(self, prompt, max_tokens=200):
+        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
 
         with torch.no_grad():
-            outputs = self.model.generate(
+            output = self.model.generate(
                 **inputs,
-                generation_config=generation_config
+                max_new_tokens=max_tokens,
+                do_sample=True,
+                top_p=0.9,
+                temperature=0.7,
+                streamer=self.streamer
             )
 
-        response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return response[len(prompt):].strip()
+        response = self.tokenizer.decode(output[0], skip_special_tokens=True)
+        return self._clean_response(prompt, response)
+
+    def _clean_response(self, prompt, response):
+        # Remove prompt from generated response
+        return response.replace(prompt, "").strip()
