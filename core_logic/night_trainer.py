@@ -7,24 +7,24 @@ from daily_summary import DailySummary
 from llm.llm_with_lora import LoRATrainer
 from utils.logger import logger
 
-class NightTrainer:
-    def __init__(self, user_id):
-        self.user_id = user_id
-        self.memory = MemoryManager(user_id)
-        self.journal = Journal(user_id)
-        self.vault = PrivateMemoryVault(user_id)
-        self.feedback = FeedbackLearner(user_id)
-        self.summarizer = DailySummary(user_id)
-        self.trainer = LoRATrainer(
-            model_path="llm/11m", adapter_path="lora_adapters"
-        )
+# Modular function that scheduler can call
+def fine_tune_model(user_id, data=None, embeddings=None):
+    logger.info(f"🌙 Night training started for {user_id}...")
 
-    def run_training_job(self):
-        logger.info(f"🌙 Night training started for {self.user_id}...")
+    # Init trainers and tools
+    memory = MemoryManager(user_id)
+    journal = Journal(user_id)
+    vault = PrivateMemoryVault(user_id)
+    feedback = FeedbackLearner(user_id)
+    summarizer = DailySummary(user_id)
+    trainer = LoRATrainer(model_path="llm/11m", adapter_path="lora_adapters")
 
-        memory_logs = self.memory.retrieve_all()
-        private_entries = self.vault.retrieve_private_entries()
-        feedback_entries = self.feedback.retrieve_all_feedback()
+    if data is None:
+        # Fallback to internal fetch if not provided
+        memory_logs = memory.retrieve_all()
+        private_entries = vault.retrieve_private_entries()
+        feedback_entries = feedback.retrieve_all_feedback()
+
         combined_logs = memory_logs + private_entries
 
         high_quality = [
@@ -33,28 +33,27 @@ class NightTrainer:
             if e.get("feedback_score", 0) == 1
         ]
 
-        all_data = [
+        data = [
             {"input": e["user_input"], "output": e["soulmate_response"]}
             for e in combined_logs
             if e.get("user_input") and e.get("soulmate_response")
         ] + high_quality
 
-        if not all_data:
-            logger.warning("📭 No data to train on tonight.")
-            return
+    if not data:
+        logger.warning(f"📭 No training data found for {user_id}, skipping...")
+        return
 
-        summary = self.summarizer.generate_summary()
-        logger.info(f"🧠 {summary}")
+    summary = summarizer.generate_summary()
+    logger.info(f"🧠 Summary for {user_id}: {summary}")
 
-        self.trainer.fine_tune(all_data)
+    trainer.fine_tune(data, embeddings=embeddings)
 
-        logger.success("✅ Soulmate has evolved overnight. 🌌🧠💖")
+    logger.info(f"✅ Soulmate for {user_id} has evolved overnight. 🌌🧠💖")
 
-
+# CLI runner for manual mode
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 2:
         print("⚠️  Please provide user ID as a command-line argument.")
     else:
-        trainer = NightTrainer(sys.argv[1])
-        trainer.run_training_job()
+        fine_tune_model(sys.argv[1])
