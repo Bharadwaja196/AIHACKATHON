@@ -8,7 +8,6 @@ from wellness_tools import WellnessTools
 from intent_classifier import IntentClassifier
 from some_llm_sdk import LLM  # Replace with your actual LLM interface
 
-
 class SoulmateAGI:
     def __init__(self, user_id):
         self.user_id = user_id
@@ -35,14 +34,14 @@ class SoulmateAGI:
         recent_context = self.memory.retrieve_relevant(user_input, limit=5)
 
         # Step 2.5: Intent Classification
-        intent = self.intent_classifier.classify_intent(user_input)
+        intent = self.intent_classifier.classify(user_input)
         if intent == "joking":
             self.set_mode("casual")
         elif intent == "venting":
             self.set_mode("supportive")
-        elif intent == "advice":
+        elif intent == "seeking_advice":
             self.set_mode("task")
-        elif intent == "support":
+        elif intent == "support_request":
             self.set_mode("supportive")
 
         # Step 3: Adjust Personality Mode if Emotionally Low
