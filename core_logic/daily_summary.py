@@ -2,45 +2,70 @@ import os
 import json
 from datetime import datetime
 from collections import Counter
+from intent_classifier import IntentClassifier
+from emotion_analyzer import analyze_emotion
 
-class DailyThoughtSummary:
-    def __init__(self, user_id, journal_dir="memory/journals"):
+class DailySummary:
+    def __init__(self, user_id, memory_dir="memory/interactions"):
         self.user_id = user_id
-        self.journal_dir = os.path.join(journal_dir, user_id)
+        self.memory_path = os.path.join(memory_dir, user_id)
+        self.intent_classifier = IntentClassifier()
 
-    def generate_summary(self, date=None):
-        if not date:
-            date = datetime.now().strftime("%Y-%m-%d")
+    def _load_today_entries(self):
+        """Loads the user interactions for today from memory."""
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        filepath = os.path.join(self.memory_path, f"{today_str}.json")
+        if not os.path.exists(filepath):
+            return []
+        with open(filepath, "r") as f:
+            return json.load(f)
 
-        journal_path = os.path.join(self.journal_dir, f"{date}.json")
-        if not os.path.exists(journal_path):
-            return "No journal data available to summarize."
-
-        with open(journal_path, "r") as f:
-            entries = json.load(f)
-
+    def generate_summary(self):
+        """Generates a daily summary of user interactions including emotions, intents, and topics."""
+        entries = self._load_today_entries()
         if not entries:
-            return "No entries recorded today."
+            return "📭 No conversations logged today."
 
-        # Extract emotions
-        emotions = [entry.get("emotion", "neutral") for entry in entries]
-        most_common_emotion = Counter(emotions).most_common(1)[0][0]
+        emotions = []
+        intents = []
+        topics = []
 
-        # Extract recurring thoughts
-        thought_fragments = [entry["user_input"] for entry in entries if entry["user_input"]]
-        thoughts = " ".join(thought_fragments).lower()
+        # Loop through each entry and extract emotions, intents, and topics
+        for entry in entries:
+            user_input = entry.get("user_input", "")
+            emotion = analyze_emotion(user_input)
+            intent = self.intent_classifier.classify_intent(user_input)
 
-        common_keywords = [word for word in thoughts.split() if len(word) > 4]
-        frequent_words = Counter(common_keywords).most_common(5)
+            emotions.append(emotion)
+            intents.append(intent)
 
-        summary = f"🧠 **Daily Thought Summary** for {date}:\n"
-        summary += f"- Dominant Emotion: **{most_common_emotion}**\n"
-        if frequent_words:
-            summary += "- Frequent topics: " + ", ".join([word for word, count in frequent_words]) + "\n"
-        summary += "- You had " + str(len(entries)) + " key reflections today.\n"
+            # Check if the entry contains a topic (optional, depends on how topics are tracked)
+            topic = entry.get("topic")
+            if topic:
+                topics.append(topic)
 
-        return summary
+        # Summarize emotions, intents, and topics using Counter
+        emotion_summary = Counter(emotions).most_common()
+        intent_summary = Counter(intents).most_common()
+        topic_summary = Counter(topics).most_common()
 
-# Example usage:
-# summarizer = DailyThoughtSummary(user_id="user123")
-# print(summarizer.generate_summary())
+        # Construct the report string
+        report = f"📝 **Daily Summary for {self.user_id}**\n\n"
+
+        if emotion_summary:
+            report += "💬 Emotions:\n"
+            for emotion, count in emotion_summary:
+                report += f" - {emotion}: {count} times\n"
+
+        if intent_summary:
+            report += "\n🎯 Intents:\n"
+            for intent, count in intent_summary:
+                report += f" - {intent}: {count} times\n"
+
+        if topic_summary:
+            report += "\n🧠 Topics (if tracked):\n"
+            for topic, count in topic_summary:
+                report += f" - {topic}: {count} times\n"
+
+        return report.strip()
+
