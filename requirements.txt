@@ -22,3 +22,8 @@ openai==1.23.6
 # If journaling includes emojis or markdown rendering
 emoji==2.11.0
 rich==13.7.0
+
+transformers
+peft
+torch
+
